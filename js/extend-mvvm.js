@@ -25,6 +25,10 @@
 
 	var ACTIONS = ['Click', 'Focus', 'Blur'];
 
+	//-- Model
+
+	mvvm.model = {};
+	mvvm.viewmodels = {};
 
 	//-- Viewmodel
 	mvvm.Viewmodel = function(id) {
@@ -43,6 +47,7 @@
 		if (this.root) {
 			
 			//Loop through and get all elements with an id and place them in a view
+			//TODO: narrow scope only to action elements such as button, input
 			var elements = this.root.querySelectorAll('[id]');
 
 			for (var i=0, len=elements.length; i<len; i++) {
@@ -62,39 +67,49 @@
 	//eg actions: {click: {'table thead tr': rowClick}}
 	//eg view {'table thead tr': 'row'}
 	mvvm.Viewmodel.prototype.resolve = function() {
-		
+
 		//Create event handlers from each type of action
 		for (var i=0, len=ACTIONS.length; i<len; i++) {
 
-			var action = ACTIONS[i].toLowerCase(),
-				fn;
+			var action = ACTIONS[i].toLowerCase();
 	
 			//Loop through the views which are marked us unbound
 			//TODO: unbind
 			for (var key in this.views) {
 				
-				fn = values[key] + action;
+				var fn = this[this.views[key] + ACTIONS[i]];
 
 				//Match up any existing functions
-				if (this[fn] && typeof this[fn] === 'function') {	
+				if (fn && typeof fn === 'function') {	
 
 					//Create the event handler for this action if it doesnt exist
 					if (!this.actions[action]) {
 
-						//Bind an event handler for each action to the root
-						this.root.addEventListener(action, function(e) {
+						//Capture the value of action
+						(function(current, actions){
 
-							//Loop through each selector and handler by this action
-							for (var key in this.actions[action]) {
+							//Bind an event handler for each action to the root
+							this.root.addEventListener(current, function(e) {
 
-								//If the target matches the selector, then call the handler
-								if (mvvm.matches(e.target, key)) this.actions[action][key].call(e.target, e);
-							}
-						})
+								//Loop through each selector and handler by this action
+								for (var key in actions[current]) {
+
+									//If the target matches the selector, then call the handler
+									if (mvvm.matches(e.target, key)) {// this.model.apply(function() {
+										actions[current][key].call(e.target, e);
+									}; //);
+								}
+
+							});
+
+						}).call(this, action, this.actions);
+
+						//Add this event type
+						this.actions[action] = {};
 					}
 					
 					//Function has now been bound in actions
-					this.actions[action][key] = this[fn];
+					this.actions[action][key] = fn;
 				}
 			}
 		}
@@ -115,6 +130,9 @@
 
 		//Now resolve any of the bindings, including implicit bindings
 		app.resolve();
+
+		mvvm.viewmodels[id] = app;
+		mvvm.model[id] = app.model;
 
 		return app;
 	}
