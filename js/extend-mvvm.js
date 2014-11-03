@@ -9,25 +9,34 @@
 *   http://www.opensource.org/licenses/mit-license.php
 */
 
+//Helper functionality
+(function() {
+
+	window.mvvm = {};
+
+	//IE9 and >
+	mvvm.matches = function(el, selector) {
+  		return (el.matches || el.matchesSelector || el.msMatchesSelector || el.mozMatchesSelector || el.webkitMatchesSelector || el.oMatchesSelector).call(el, selector);
+	};
+})();
+
 //Core
 (function() {
 
-	var ACTIONS = ['click', 'focus', 'blur'];
+	var ACTIONS = ['Click', 'Focus', 'Blur'];
 
-	window.mvvm = {};
 
 	//-- Viewmodel
 	mvvm.Viewmodel = function(id) {
 		this.views = {};
 		this.model = {};
+		this.actions = {};
 
 		this.id = id;
 		this.root = null;
-
-		this._queue = {};
 	}
 
-	//Setup root element and initial implicit bindings
+	//Setup root element, initial implicit bindings and handlers
 	mvvm.Viewmodel.prototype.initialize = function() {
 		this.root = document.getElementById(this.id);
 		
@@ -37,7 +46,7 @@
 			var elements = this.root.querySelectorAll('[id]');
 
 			for (var i=0, len=elements.length; i<len; i++) {
-				this._queue['#' + elements[i].id] = elements[i].id;
+				this.views['#' + elements[i].id] = elements[i].id;
 			}
 		}
 	}
@@ -45,38 +54,52 @@
 	//Add elements to the view
 	mvvm.Viewmodel.prototype.view = function(values) {
 		for (var key in values) {
-			this._queue[key] = values[key];
+			this.views[key] = values[key];
 		}
 	}
 
 	//Resolve elements in the view
-	mvvm.Viewmodel.prototype.resolve = function(values) {
-		var action, name, handler;
-		var views = this.views;
-
-		//Loop through all view and bind/unbind them to actions
+	//eg actions: {click: {'table thead tr': rowClick}}
+	//eg view {'table thead tr': 'row'}
+	mvvm.Viewmodel.prototype.resolve = function() {
+		
+		//Create event handlers from each type of action
 		for (var i=0, len=ACTIONS.length; i<len; i++) {
-			
-			action = ACTIONS[i];
-			for (var key in values) {
 
-				handler = values[key] + action;
+			var action = ACTIONS[i].toLowerCase(),
+				fn;
+	
+			//Loop through the views which are marked us unbound
+			//TODO: unbind
+			for (var key in this.views) {
 				
-				//TODO: unbind if value
-				if (this[handler] && typeof this[handler] === 'function') {
+				fn = values[key] + action;
 
+				//Match up any existing functions
+				if (this[fn] && typeof this[fn] === 'function') {	
 
-					//We need event delegation binding here
-					//We also need to place this in a wrapper
-					this.root.on(action, key, this[handler]);
+					//Create the event handler for this action if it doesnt exist
+					if (!this.actions[action]) {
 
+						//Bind an event handler for each action to the root
+						this.root.addEventListener(action, function(e) {
 
+							//Loop through each selector and handler by this action
+							for (var key in this.actions[action]) {
 
-					this.views[key] = values[key];
+								//If the target matches the selector, then call the handler
+								if (mvvm.matches(e.target, key)) this.actions[action][key].call(e.target, e);
+							}
+						})
+					}
+					
+					//Function has now been bound in actions
+					this.actions[action][key] = this[fn];
 				}
 			}
 		}
 	}	
+
 
 	//-- mvvm
 	//Helper to create an initialised viewmodel
