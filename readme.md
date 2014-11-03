@@ -2,17 +2,16 @@ An ultra-lightweight high performance MVC framework in < 5k minified and gzipped
 
 Goals
 
-- Lightweight
-- Leverage existing frameworks 
+- Lightweight, minimal dependencies
 - Good seperation of concerns
 - High productivity out the box 
-- Promotes modular design
+- Promote modular design
 
 Features
 
-- Moustache templating for logicless markup
-- Declarative binding within code
-
-Enhancements
-
+- Declarative views in code
+- Two way binding
+- Logicless templating (Moustache)
 - Dependency injection
+
+
