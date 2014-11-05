@@ -14,10 +14,12 @@
 
 	window.mvvm = {};
 
-	//IE9 and >
+	//IE9 and above
+	//TODO: move this to mvvm.element / mvvm.elements class
 	mvvm.matches = function(el, selector) {
   		return (el.matches || el.matchesSelector || el.msMatchesSelector || el.mozMatchesSelector || el.webkitMatchesSelector || el.oMatchesSelector).call(el, selector);
 	};
+
 })();
 
 //Core
@@ -28,16 +30,17 @@
 	//-- Model
 
 	mvvm.model = {};
-	mvvm.viewmodels = {};
 
 	//-- Viewmodel
 	mvvm.Viewmodel = function(id) {
 		this.views = {};
 		this.model = {};
-		this.actions = {};
+		this.actions = {}; //view actions
+		this.bindings = {}; //model bindings
 
 		this.id = id;
 		this.root = null;
+		this.template = '';
 	}
 
 	//Setup root element, initial implicit bindings and handlers
@@ -53,6 +56,37 @@
 			for (var i=0, len=elements.length; i<len; i++) {
 				this.views['#' + elements[i].id] = elements[i].id;
 			}
+
+			//TODO: investigate IE9 and 10 support for change
+			//TODO: investigate any elements that dont use change? (perhaps blur?)
+			//Remove existing bound handler (if any)
+			(function(vm) {
+				vm.root.addEventListener('change', function(e) {
+					
+					var flag = false;
+
+					for (var key in vm.bindings) {
+						if (mvvm.matches(e.target, key)) {
+
+							//TODO: investigate when name attribute is allowed to be used
+							var name = e.target.getAttribute('name');
+							if (name) {
+								vm.bindings[name] = e.target.value;
+								console.log('Updating model: ' + name + ' with ' + e.target.value);
+								flag = true;
+							}
+						}
+					}
+
+					//if (flag) vm.render(); // we dont want to overide other changes!
+				})
+			})(this);
+
+			this.bind('select, input, textarea', this.model);
+
+			//Set up template
+			this.template = this.root.innerHTML;
+  			Mustache.parse(this.template);   // optional, speeds up future uses
 		}
 	}
 
@@ -113,7 +147,32 @@
 				}
 			}
 		}
-	}	
+	}
+
+	mvvm.Viewmodel.prototype.bind = function(selector, model) {
+		
+		if (!this.root) return;
+
+		//Get initial values
+		var elements = this.root.querySelectorAll(selector);
+		for (var i=0, len=elements.length; i<len; i++) {
+			
+			var element = elements[i],
+				name = element.getAttribute('name');
+
+			if (name) model[name] = element.value;
+		}
+
+		//Add to list of bindings
+		this.bindings[selector] = model;
+	}
+
+	mvvm.Viewmodel.prototype.render = function() {
+		if (!this.root) return;
+		console.log('Rendering template');
+  		var rendered = Mustache.render(this.template, this.model);
+  		this.root.innerHTML = rendered;
+	}
 
 
 	//-- mvvm
@@ -121,6 +180,9 @@
 	mvvm.viewmodel = function(id, fn) {
 
 		var app = new mvvm.Viewmodel(id);
+	
+		//TODO: This is probably wrong
+		mvvm.model[id] = app.model;
 
 		//Get implicit actions, bind root element
 		app.initialize();
@@ -128,11 +190,9 @@
 		//Execute the function
 		if (fn) fn.call(this, app);
 
-		//Now resolve any of the bindings, including implicit bindings
+		//Now resolve any of the bindings, including implicit bindings and render the template
 		app.resolve();
-
-		mvvm.viewmodels[id] = app;
-		mvvm.model[id] = app.model;
+		app.render();
 
 		return app;
 	}
